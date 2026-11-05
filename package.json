@@ -2,7 +2,7 @@
   "name": "lorecreator",
   "productName": "LoreCreator",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Criador de histórias para jogos: codex do mundo, linha do tempo e roteiros ramificados.",
   "author": "VitorJacintho",
