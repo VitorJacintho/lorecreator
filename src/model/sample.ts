@@ -1,7 +1,7 @@
 /** Projeto de exemplo: mostra codex, linha do tempo, relações, variáveis e uma história com três finais. */
 import { autoLayout } from '../engine/analyze';
-import { newEntry, newProject, newStory, newStoryNode, newVariable, uid } from './factory';
-import type { Entry, EntryKind, NodeType, Project, StoryNode } from './types';
+import { newChoice, newEntry, newProject, newStory, newStoryNode, newVariable, uid } from './factory';
+import type { CompareOp, Condition, Effect, Entry, EntryKind, NodeType, Project, StoryNode, VarValue } from './types';
 
 export function sampleProject(): Project {
   const p = newProject(
@@ -104,8 +104,9 @@ export function sampleProject(): Project {
     story.nodes.push(n);
     return n;
   };
-  const link = (from: StoryNode, text: string, to: StoryNode, condition?: StoryNode['choices'][number]['condition']) =>
-    from.choices.push({ id: uid(), text, targetId: to.id, ...(condition ? { condition } : {}) });
+  const link = (from: StoryNode, text: string, to: StoryNode, conditions: Condition[] = [], effects: Effect[] = []) =>
+    from.choices.push({ ...newChoice(to.id, text), conditions, effects });
+  const se = (varId: string, op: CompareOp, value: VarValue): Condition => ({ id: uid(), varId, op, value });
 
   const n1 = story.nodes[0];
   n1.title = 'Despertar';
@@ -117,7 +118,6 @@ export function sampleProject(): Project {
     'Uma cartógrafa da Guilda, aqui? Posso te levar ao farol pelo [[Pântano dos Sussurros|pântano]]... por 8 moedas.', kael);
   const n4 = node('cena', 'Pelo pântano',
     'Kael guia você pela bruma. No caminho, confessa que trabalha para a [[Ordem da Maré Cinzenta]] — mas jura que quer sair.');
-  n4.effects.push({ id: uid(), varId: ouro.id, op: 'sub', value: 8 }, { id: uid(), varId: confia.id, op: 'set', value: true });
   const n5 = node('fala', 'O topo do farol',
     'Devolva a Lente, cartógrafa. A bruma é misericórdia. Esquecer dói menos do que lembrar.', viuva);
   const n6 = node('final', 'Chama solitária', 'A chama volta a arder e a Viúva desaparece na bruma. Velmora está salva — por enquanto.');
@@ -126,12 +126,15 @@ export function sampleProject(): Project {
 
   link(n1, 'Seguir direto para o farol', n2);
   link(n1, 'Procurar ajuda no porto', n3);
-  link(n3, 'Pagar Kael (8 moedas)', n4, { varId: ouro.id, op: '>=', value: 8 });
+  link(n3, 'Pagar Kael (8 moedas)', n4, [se(ouro.id, '>=', 8)], [
+    { id: uid(), varId: ouro.id, op: 'sub', value: 8 },
+    { id: uid(), varId: confia.id, op: 'set', value: true },
+  ]);
   link(n3, 'Recusar e ir sozinha', n2);
   link(n4, '', n2);
   link(n2, 'Pegar a Lente e subir', n5);
   link(n5, 'Acender o farol', n6);
-  link(n5, 'Chamar Kael', n7, { varId: confia.id, op: '==', value: true });
+  link(n5, 'Chamar Kael', n7, [se(confia.id, '==', true), se(temLente.id, '==', true)]);
   link(n5, 'Entregar a Lente', n8);
 
   const layout = autoLayout(story);

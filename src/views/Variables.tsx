@@ -14,7 +14,7 @@ export function Variables() {
     let n = 0;
     for (const s of project.stories) for (const node of s.nodes) {
       n += node.effects.filter((e) => e.varId === v.id).length;
-      n += node.choices.filter((c) => c.condition?.varId === v.id).length;
+      for (const c of node.choices) n += c.conditions.filter((x) => x.varId === v.id).length + c.effects.filter((e) => e.varId === v.id).length;
       if (node.text.toLowerCase().includes(`{${v.name.toLowerCase()}}`)) n++;
     }
     return n;
@@ -42,12 +42,15 @@ export function Variables() {
       x.initial = defaultValue(type);
       // ajusta condições e efeitos para o novo tipo
       for (const s of d.stories) for (const n of s.nodes) {
-        for (const e of n.effects) if (e.varId === v.id) {
+        for (const e of [...n.effects, ...n.choices.flatMap((c) => c.effects)]) if (e.varId === v.id) {
           e.value = coerce(type, e.value);
           if ((e.op === 'add' || e.op === 'sub') && type !== 'number') e.op = 'set';
           if (e.op === 'toggle' && type !== 'bool') e.op = 'set';
         }
-        for (const c of n.choices) if (c.condition?.varId === v.id) c.condition.value = coerce(type, c.condition.value);
+        for (const x of n.choices.flatMap((c) => c.conditions)) if (x.varId === v.id) {
+          x.value = coerce(type, x.value);
+          if (type !== 'number' && x.op !== '==' && x.op !== '!=') x.op = '==';
+        }
       }
     });
 
@@ -73,7 +76,7 @@ export function Variables() {
         <div>
           <h2>Variáveis</h2>
           <p className="muted">
-            Guardam o que o jogador fez. Use nas histórias como <strong>efeitos</strong> (mudar o valor ao entrar em um nó),{' '}
+            Guardam o que o jogador fez. Use nas histórias como <strong>efeitos</strong> (mudar o valor ao entrar em um nó ou ao fazer uma escolha),{' '}
             <strong>condições</strong> (liberar uma escolha) e no texto como <code>{'{nome}'}</code>.
           </p>
         </div>

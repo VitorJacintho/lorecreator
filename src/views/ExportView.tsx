@@ -69,7 +69,7 @@ export function ExportView() {
           <h3>Dados para engines (JSON)</h3>
           <p className="muted">
             Histórias, variáveis, personagens e codex num JSON simples para carregar no Unity, Godot, Unreal, GameMaker, Ren'Py…
-            Cada nó tem texto, quem fala, efeitos e escolhas com destino e condição.
+            Cada nó tem texto, quem fala, efeitos e escolhas com destino, condições e efeitos.
           </p>
           <button className="btn primary" onClick={() => void save(`${base}.json`, toEngineJson(project), [{ name: 'JSON', extensions: ['json'] }])}>
             Exportar JSON

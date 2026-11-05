@@ -1,10 +1,11 @@
-import type { Choice, CompareOp, Condition, Effect, Id, Story, StoryNode, VarValue, Variable } from '../model/types';
+import type { Choice, CompareOp, Condition, ConditionMode, Effect, Id, Story, StoryNode, VarValue, Variable } from '../model/types';
 
 export type Vars = Record<Id, VarValue>;
 type VarDef = Pick<Variable, 'id' | 'name' | 'type' | 'initial'>;
 
 export function compareValues(a: VarValue, op: CompareOp, b: VarValue): boolean;
 export function checkCondition(cond: Condition | undefined, vars: Vars): boolean;
+export function checkConditions(conditions: Condition[] | undefined, mode: ConditionMode | undefined, vars: Vars): boolean;
 export function initialVars(variables: VarDef[]): Vars;
 export function applyEffects(effects: Effect[], vars: Vars, variables: VarDef[]): Vars;
 export function formatValue(value: VarValue): string;
@@ -14,6 +15,12 @@ export function choicesFor(node: StoryNode, vars: Vars): { choice: Choice; ok: b
 export function enterNode(
   story: Pick<Story, 'nodes'>,
   nodeId: Id,
+  vars: Vars,
+  variables: VarDef[],
+): { node: StoryNode | null; vars: Vars };
+export function followChoice(
+  story: Pick<Story, 'nodes'>,
+  choice: Pick<Choice, 'targetId' | 'effects'>,
   vars: Vars,
   variables: VarDef[],
 ): { node: StoryNode | null; vars: Vars };

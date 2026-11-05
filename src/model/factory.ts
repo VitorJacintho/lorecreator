@@ -1,6 +1,6 @@
 import {
   KIND_INFO, PROJECT_FORMAT, PROJECT_VERSION,
-  type Entry, type EntryKind, type Id, type NodeType, type Project, type Story, type StoryNode, type VarType, type VarValue, type Variable,
+  type Choice, type Entry, type EntryKind, type Id, type NodeType, type Project, type Story, type StoryNode, type VarType, type VarValue, type Variable,
 } from './types';
 
 export function uid(): Id {
@@ -43,6 +43,20 @@ export function newEntry(kind: EntryKind, name = ''): Entry {
 
 export function newStoryNode(type: NodeType, position: { x: number; y: number }, text = ''): StoryNode {
   return { id: uid(), type, title: '', text, choices: [], effects: [], position };
+}
+
+export function newChoice(targetId?: Id, text = ''): Choice {
+  return { id: uid(), text, ...(targetId ? { targetId } : {}), conditions: [], conditionMode: 'all', effects: [] };
+}
+
+/** Cópia de uma escolha com ids novos (o destino continua o mesmo). */
+export function cloneChoice(c: Choice): Choice {
+  return {
+    ...structuredClone(c),
+    id: uid(),
+    conditions: c.conditions.map((x) => ({ ...x, id: uid() })),
+    effects: c.effects.map((x) => ({ ...x, id: uid() })),
+  };
 }
 
 export function newStory(name: string): Story {

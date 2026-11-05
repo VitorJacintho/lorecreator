@@ -1,7 +1,7 @@
 /** Formatos de exportação: HTML jogável, JSON para engines e Markdown ("bíblia do mundo"). */
 import runtimeSource from '../engine/runtime.js?raw';
-import { reachable } from '../engine/analyze';
-import { KIND_INFO, ENTRY_KINDS, NODE_TYPE_INFO, type Id, type Project, type Story, type StoryNode } from '../model/types';
+import { reachable } from '../engine/simulate';
+import { KIND_INFO, ENTRY_KINDS, NODE_TYPE_INFO, type Effect, type Id, type Project, type Story, type StoryNode } from '../model/types';
 import playerSource from './player.js?raw';
 
 const stripLinks = (t: string) => t.replace(/\[\[([^[\]\n|]+)(?:\|([^[\]\n]+))?\]\]/g, (_a, n: string, alias?: string) => (alias ?? n).trim());
@@ -10,16 +10,19 @@ const stripLinks = (t: string) => t.replace(/\[\[([^[\]\n|]+)(?:\|([^[\]\n]+))?\
 
 /**
  * Formato estável e simples de ler em qualquer engine:
- *  - nós indexados por id; cada escolha diz o destino (`next`) e a condição opcional;
+ *  - nós indexados por id; cada escolha diz o destino (`next`), as condições e os efeitos;
+ *  - `conditionMode`: "all" = todas as condições precisam valer, "any" = basta uma;
+ *  - ao escolher: aplique os efeitos da escolha e depois os efeitos do nó de destino;
  *  - `speaker` aponta para `characters`; textos mantêm {variavel} para interpolar no jogo;
  *  - [[links]] viram texto simples (o nome original fica em `mentions`).
  */
 export function toEngineJson(project: Project): string {
   const varName = new Map(project.variables.map((v) => [v.id, v.name]));
   const mentions = (t: string) => [...t.matchAll(/\[\[([^[\]\n|]+)/g)].map((m) => m[1].trim());
+  const effectsOut = (list: Effect[]) => list.filter((e) => varName.has(e.varId)).map((e) => ({ variable: varName.get(e.varId), op: e.op, value: e.value }));
   const out = {
     format: 'lorecreator-export',
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     project: { name: project.name, genre: project.genre, premise: project.premise },
     variables: project.variables.map((v) => ({ name: v.name, type: v.type, initial: v.initial, description: v.description })),
@@ -40,16 +43,18 @@ export function toEngineJson(project: Project): string {
             speaker: n.speakerId ?? null,
             text: stripLinks(n.text),
             mentions: mentions(n.text),
-            effects: n.effects.filter((e) => varName.has(e.varId)).map((e) => ({ variable: varName.get(e.varId), op: e.op, value: e.value })),
+            effects: effectsOut(n.effects),
             choices:
               n.type === 'final'
                 ? []
                 : n.choices.map((c) => ({
                     text: c.text,
                     next: c.targetId ?? null,
-                    condition: c.condition && varName.has(c.condition.varId)
-                      ? { variable: varName.get(c.condition.varId), op: c.condition.op, value: c.condition.value }
-                      : null,
+                    conditions: c.conditions
+                      .filter((x) => varName.has(x.varId))
+                      .map((x) => ({ variable: varName.get(x.varId), op: x.op, value: x.value })),
+                    conditionMode: c.conditionMode,
+                    effects: effectsOut(c.effects),
                   })),
           },
         ]),
@@ -96,6 +101,11 @@ export function toMarkdown(project: Project): string {
   const vars = new Map(project.variables.map((v) => [v.id, v]));
   const md = (t: string) => t.replace(/\[\[([^[\]\n|]+)(?:\|([^[\]\n]+))?\]\]/g, (_a, n: string, alias?: string) => `**${(alias ?? n).trim()}**`);
   const fmt = (v: unknown) => (v === true ? 'sim' : v === false ? 'não' : String(v));
+  const effectText = (e: Effect) => {
+    const v = vars.get(e.varId);
+    if (!v) return null;
+    return `\`${v.name}\` ${e.op === 'set' ? '=' : e.op === 'add' ? '+=' : e.op === 'sub' ? '-=' : 'inverte'}${e.op === 'toggle' ? '' : ` ${fmt(e.value)}`}`;
+  };
 
   lines.push(`# ${project.name}`, '');
   if (project.genre) lines.push(`*${project.genre}*`, '');
@@ -150,16 +160,17 @@ export function toMarkdown(project: Project): string {
       if (n.type === 'fala') lines.push(`**${entries.get(n.speakerId ?? '')?.name?.toUpperCase() ?? 'ALGUÉM'}:** ${md(n.text)}`, '');
       else if (n.text.trim()) lines.push(md(n.text), '');
       for (const e of n.effects) {
-        const v = vars.get(e.varId);
-        if (v) lines.push(`> ⚙ \`${v.name}\` ${e.op === 'set' ? '=' : e.op === 'add' ? '+=' : e.op === 'sub' ? '-=' : 'inverte'} ${e.op === 'toggle' ? '' : fmt(e.value)}`);
+        const text = effectText(e);
+        if (text) lines.push(`> ⚙ ${text}`);
       }
       if (n.effects.length) lines.push('');
       if (n.type !== 'final') {
         for (const c of n.choices) {
-          const cond = c.condition && vars.get(c.condition.varId)
-            ? ` *(se \`${vars.get(c.condition.varId)!.name}\` ${c.condition.op} ${fmt(c.condition.value)})*`
-            : '';
-          lines.push(`- ${c.text.trim() || 'Continuar'} → ${c.targetId ? `§${num.get(c.targetId)}` : '(sem destino)'}${cond}`);
+          const conds = c.conditions.filter((x) => vars.has(x.varId)).map((x) => `\`${vars.get(x.varId)!.name}\` ${x.op} ${fmt(x.value)}`);
+          const cond = conds.length ? ` *(se ${conds.join(c.conditionMode === 'any' ? ' ou ' : ' e ')})*` : '';
+          const effects = c.effects.map(effectText).filter(Boolean);
+          const fx = effects.length ? ` ⚙ ${effects.join(', ')}` : '';
+          lines.push(`- ${c.text.trim() || 'Continuar'} → ${c.targetId ? `§${num.get(c.targetId)}` : '(sem destino)'}${cond}${fx}`);
         }
         if (n.choices.length) lines.push('');
       }

@@ -10,8 +10,9 @@ Aplicativo para Windows para criar histórias de jogos: o **mundo** (personagens
 - **Linha do tempo**: os eventos do codex em ordem, com setas para reordenar.
 - **Mapa de relações**: as entradas em um grafo. Arrastar entre dois cartões cria uma relação.
 - **Histórias ramificadas**: quadro de nós (Cena, Fala, Final). Arraste de uma escolha até outro nó para ligar, ou até o vazio para criar o próximo nó já ligado.
-  Cada nó tem efeitos em variáveis, e as escolhas podem exigir condições ("ouro ≥ 8"). O app avisa sobre escolhas sem destino, becos sem saída e nós inalcançáveis.
+  Nós e escolhas têm efeitos em variáveis ("pagar 8 de ouro"), e as escolhas podem exigir uma ou várias condições, todas (E) ou qualquer uma (OU). O app avisa sobre escolhas sem destino, becos sem saída e nós inalcançáveis.
 - **Testar**: jogue a história dentro do app, veja e altere as variáveis, volte passos e pule para editar o nó atual.
+- **Simular caminhos**: testa as combinações de nó e variáveis e mostra quais finais dá para alcançar de verdade (com o caminho mais curto até cada um), onde o jogador pode ficar preso, laços sem saída, escolhas que nunca liberam e o menor e o maior valor de cada variável numérica. Histórias com combinações demais param em 30 mil situações, e o resultado avisa quando isso acontece.
 - **Exportar**:
   - **HTML jogável**: um arquivo único que abre em qualquer navegador.
   - **JSON para engines** (Unity, Godot, Unreal, Ren'Py…): nós, escolhas, condições, efeitos, personagens e codex.
@@ -29,7 +30,7 @@ Na primeira gravação de cada sessão, o app guarda a versão anterior em `arqu
 npm install
 npm run app:dev     # Vite + Electron com recarga automática
 npm run dev         # só a interface no navegador (projetos ficam no localStorage)
-npm test            # testes do motor das histórias
+npm test            # testes do motor, do simulador, do formato do projeto e dos exportadores
 npm run typecheck
 npm run dist:win    # gera o instalador e a versão portátil em release/
 ```
@@ -40,7 +41,7 @@ Estrutura:
 |---|---|
 | `electron/` | processo principal (arquivos, diálogos, associação `.lore`) e preload |
 | `src/model/` | tipos, criação, validação/migração de projetos, links `[[...]]`, projeto de exemplo |
-| `src/engine/` | `runtime.js` (condições, efeitos, texto; também vai embutido no HTML exportado) e análise/organização das histórias |
+| `src/engine/` | `runtime.js` (condições, efeitos, texto; também vai embutido no HTML exportado), `simulate.js` (simulador de caminhos) e análise/organização das histórias |
 | `src/store/` | estado do projeto com desfazer/refazer e salvamento automático; navegação |
 | `src/views/`, `src/components/` | telas e componentes |
 | `src/export/` | exportadores e o player do HTML jogável |

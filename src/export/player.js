@@ -1,6 +1,6 @@
 /**
  * Interface do HTML jogável exportado. Roda no mesmo <script type="module"> que
- * src/engine/runtime.js (as funções enterNode, choicesFor, renderText… vêm de lá).
+ * src/engine/runtime.js (as funções enterNode, followChoice, choicesFor, renderText… vêm de lá).
  * Sem imports e sem innerHTML com texto do usuário: tudo via textContent.
  */
 const DATA = JSON.parse(document.getElementById('lore-data').textContent);
@@ -49,7 +49,7 @@ function start(story) {
 function choose(option) {
   if (!option.ok) return;
   const cur = state.steps[state.steps.length - 1];
-  const { vars } = enterNode(state.story, option.choice.targetId, cur.vars, DATA.variables);
+  const { vars } = followChoice(state.story, option.choice, cur.vars, DATA.variables);
   state.steps.push({ nodeId: option.choice.targetId, vars });
   render();
 }

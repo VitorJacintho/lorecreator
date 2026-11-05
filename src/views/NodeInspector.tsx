@@ -1,8 +1,8 @@
 /** Painel lateral do editor de histórias: edita o nó selecionado (ou mostra o resumo da história). */
 import { confirmDialog, promptDialog } from '../components/dialogs';
 import { LoreTextarea } from '../components/text';
-import { nodeLabel, type Issue } from '../engine/analyze';
-import { defaultValue, newEntry, newVariable, uid } from '../model/factory';
+import { OP_LABEL, nodeLabel, type Issue } from '../engine/analyze';
+import { cloneChoice, defaultValue, newChoice, newEntry, newVariable, uid } from '../model/factory';
 import {
   NODE_TYPE_INFO, type Choice, type CompareOp, type Condition, type Effect, type EffectOp, type Id, type NodeType, type Story,
   type StoryNode, type VarType, type Variable,
@@ -13,9 +13,11 @@ import { plural } from '../util';
 import { ValueInput } from './Variables';
 
 const OPS_FOR: Record<VarType, CompareOp[]> = { bool: ['==', '!='], number: ['==', '!=', '>', '<', '>=', '<='], text: ['==', '!='] };
-const OP_LABEL: Record<CompareOp, string> = { '==': 'é', '!=': 'não é', '>': '>', '<': '<', '>=': '≥', '<=': '≤' };
 const EFFECT_OPS_FOR: Record<VarType, EffectOp[]> = { bool: ['set', 'toggle'], number: ['set', 'add', 'sub'], text: ['set'] };
 const EFFECT_LABEL: Record<EffectOp, string> = { set: 'vira', add: 'soma', sub: 'subtrai', toggle: 'inverte' };
+
+const startValue = (v: Variable) => (v.type === 'bool' ? true : defaultValue(v.type));
+const blankEffect = (v: Variable): Effect => ({ id: uid(), varId: v.id, op: 'set', value: startValue(v) });
 
 interface Props {
   story: Story;
@@ -29,7 +31,6 @@ interface Props {
 export function NodeInspector({ story, node, issues, onFocus, onAddNode, onDeleted }: Props) {
   const project = useProject();
   const characters = project.entries.filter((e) => e.kind === 'personagem').sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  const vars = new Map(project.variables.map((v) => [v.id, v]));
   const others = story.nodes.filter((n) => n.id !== node.id);
 
   const edit = (fn: (n: StoryNode, s: Story) => void, key?: string) =>
@@ -68,15 +69,24 @@ export function NodeInspector({ story, node, issues, onFocus, onAddNode, onDelet
     const v = project.variables[0] ?? (await quickVariable());
     if (!v) return;
     edit((n) => {
-      n.effects.push({ id: uid(), varId: v.id, op: 'set', value: v.type === 'bool' ? true : defaultValue(v.type) });
+      n.effects.push(blankEffect(v));
     });
   };
 
-  const addCondition = async (choiceId: Id) => {
+  const addChoiceEffect = async (choiceId: Id) => {
     const v = project.variables[0] ?? (await quickVariable());
     if (!v) return;
     editChoice(choiceId, (c) => {
-      c.condition = { varId: v.id, op: v.type === 'number' ? '>=' : '==', value: v.type === 'bool' ? true : defaultValue(v.type) };
+      c.effects.push(blankEffect(v));
+    });
+  };
+
+  const addCondition = async (choice: Choice) => {
+    // prefere uma variável que esta escolha ainda não testa
+    const v = project.variables.find((x) => !choice.conditions.some((c) => c.varId === x.id)) ?? project.variables[0] ?? (await quickVariable());
+    if (!v) return;
+    editChoice(choice.id, (c) => {
+      c.conditions.push({ id: uid(), varId: v.id, op: v.type === 'number' ? '>=' : '==', value: startValue(v) });
     });
   };
 
@@ -96,7 +106,7 @@ export function NodeInspector({ story, node, issues, onFocus, onAddNode, onDelet
       ...structuredClone(node),
       id: uid(),
       position: { x: node.position.x + 40, y: node.position.y + 40 },
-      choices: node.choices.map((c) => ({ ...structuredClone(c), id: uid() })),
+      choices: node.choices.map(cloneChoice),
       effects: node.effects.map((e) => ({ ...e, id: uid() })),
     };
     update((d) => {
@@ -179,35 +189,18 @@ export function NodeInspector({ story, node, issues, onFocus, onAddNode, onDelet
           <button className="btn ghost small" onClick={() => void addEffect()}>＋ Efeito</button>
         </div>
         {node.effects.length === 0 && <p className="muted small">Mude variáveis quando o jogador chegar aqui (ganhar ouro, ganhar a confiança de alguém…).</p>}
-        {node.effects.map((ef) => {
-          const v = vars.get(ef.varId);
-          return (
-            <div key={ef.id} className="rule-row">
-              <VarSelect value={ef.varId} variables={project.variables} onChange={(varId) => editEffect(ef.id, (x) => {
-                const nv = vars.get(varId)!;
-                x.varId = varId;
-                if (!EFFECT_OPS_FOR[nv.type].includes(x.op)) x.op = 'set';
-                x.value = nv.type === 'bool' ? true : defaultValue(nv.type);
-              })} />
-              {v && (
-                <>
-                  <select className="input small" value={ef.op} onChange={(e) => editEffect(ef.id, (x) => { x.op = e.target.value as EffectOp; })}>
-                    {EFFECT_OPS_FOR[v.type].map((o) => <option key={o} value={o}>{EFFECT_LABEL[o]}</option>)}
-                  </select>
-                  {ef.op !== 'toggle' && <ValueInput small type={v.type} value={ef.value} onChange={(val) => editEffect(ef.id, (x) => { x.value = val; }, 'value')} />}
-                </>
-              )}
-              <button className="icon-btn" title="Remover efeito" onClick={() => edit((n) => { n.effects = n.effects.filter((x) => x.id !== ef.id); })}>✕</button>
-            </div>
-          );
-        })}
+        {node.effects.map((ef) => (
+          <EffectRow key={ef.id} effect={ef} variables={project.variables}
+            onChange={(fn, key) => editEffect(ef.id, fn, key)}
+            onRemove={() => edit((n) => { n.effects = n.effects.filter((x) => x.id !== ef.id); })} />
+        ))}
       </section>
 
       {node.type !== 'final' ? (
         <section className="insp-section">
           <div className="section-head">
             <h4>Escolhas</h4>
-            <button className="btn ghost small" onClick={() => edit((n) => { n.choices.push({ id: uid(), text: '' }); })}>＋ Escolha</button>
+            <button className="btn ghost small" onClick={() => edit((n) => { n.choices.push(newChoice()); })}>＋ Escolha</button>
           </div>
           {node.choices.length === 0 && <p className="muted small">Sem escolhas, a história trava aqui. Adicione uma (texto vazio = "Continuar").</p>}
           {node.choices.map((c, i) => (
@@ -237,13 +230,33 @@ export function NodeInspector({ story, node, issues, onFocus, onAddNode, onDelet
                 </select>
                 {c.targetId && <button className="icon-btn" title="Ir até o destino" onClick={() => onFocus(c.targetId!)}>→</button>}
               </div>
-              {c.condition ? (
-                <ConditionRow condition={c.condition} variables={project.variables}
-                  onChange={(cond) => editChoice(c.id, (x) => { x.condition = cond; }, 'cond')}
-                  onRemove={() => editChoice(c.id, (x) => { delete x.condition; })} />
-              ) : (
-                <button className="link-btn small" onClick={() => void addCondition(c.id)}>🔒 Exigir uma condição</button>
+              {c.conditions.length > 1 && (
+                <div className="segmented full cond-mode" role="group" aria-label="Como combinar as condições">
+                  <button className={c.conditionMode === 'all' ? 'active' : ''} onClick={() => editChoice(c.id, (x) => { x.conditionMode = 'all'; })}>Todas (E)</button>
+                  <button className={c.conditionMode === 'any' ? 'active' : ''} onClick={() => editChoice(c.id, (x) => { x.conditionMode = 'any'; })}>Qualquer uma (OU)</button>
+                </div>
               )}
+              {c.conditions.map((cond, j) => (
+                <ConditionRow key={cond.id} condition={cond} variables={project.variables}
+                  lead={j === 0 ? '🔒 se' : c.conditionMode === 'any' ? 'ou' : 'e'}
+                  onChange={(next) => editChoice(c.id, (x) => {
+                    const k = x.conditions.findIndex((y) => y.id === cond.id);
+                    if (k >= 0) x.conditions[k] = next;
+                  }, `cond:${cond.id}`)}
+                  onRemove={() => editChoice(c.id, (x) => { x.conditions = x.conditions.filter((y) => y.id !== cond.id); })} />
+              ))}
+              {c.effects.map((ef) => (
+                <EffectRow key={ef.id} lead="⚙" effect={ef} variables={project.variables}
+                  onChange={(fn, key) => editChoice(c.id, (x) => {
+                    const e = x.effects.find((y) => y.id === ef.id);
+                    if (e) fn(e);
+                  }, key && `${ef.id}:${key}`)}
+                  onRemove={() => editChoice(c.id, (x) => { x.effects = x.effects.filter((y) => y.id !== ef.id); })} />
+              ))}
+              <div className="choice-add">
+                <button className="link-btn small" onClick={() => void addCondition(c)}>🔒 {c.conditions.length ? 'Outra condição' : 'Exigir uma condição'}</button>
+                <button className="link-btn small" onClick={() => void addChoiceEffect(c.id)} title="Aplicado quando o jogador faz esta escolha, antes dos efeitos do nó de destino">⚙ Efeito ao escolher</button>
+              </div>
             </div>
           ))}
         </section>
@@ -282,14 +295,38 @@ function VarSelect({ value, variables, onChange }: { value: Id; variables: Varia
   );
 }
 
-function ConditionRow({ condition, variables, onChange, onRemove }: { condition: Condition; variables: Variable[]; onChange: (c: Condition) => void; onRemove: () => void }) {
+function EffectRow({ effect, variables, lead, onChange, onRemove }: { effect: Effect; variables: Variable[]; lead?: string; onChange: (fn: (e: Effect) => void, key?: string) => void; onRemove: () => void }) {
+  const v = variables.find((x) => x.id === effect.varId);
+  return (
+    <div className="rule-row">
+      {lead && <span className="muted small">{lead}</span>}
+      <VarSelect value={effect.varId} variables={variables} onChange={(varId) => onChange((x) => {
+        const nv = variables.find((y) => y.id === varId)!;
+        x.varId = varId;
+        if (!EFFECT_OPS_FOR[nv.type].includes(x.op)) x.op = 'set';
+        x.value = startValue(nv);
+      })} />
+      {v && (
+        <>
+          <select className="input small" value={effect.op} onChange={(e) => onChange((x) => { x.op = e.target.value as EffectOp; })}>
+            {EFFECT_OPS_FOR[v.type].map((o) => <option key={o} value={o}>{EFFECT_LABEL[o]}</option>)}
+          </select>
+          {effect.op !== 'toggle' && <ValueInput small type={v.type} value={effect.value} onChange={(val) => onChange((x) => { x.value = val; }, 'value')} />}
+        </>
+      )}
+      <button className="icon-btn" title="Remover efeito" onClick={onRemove}>✕</button>
+    </div>
+  );
+}
+
+function ConditionRow({ condition, variables, lead, onChange, onRemove }: { condition: Condition; variables: Variable[]; lead: string; onChange: (c: Condition) => void; onRemove: () => void }) {
   const v = variables.find((x) => x.id === condition.varId);
   return (
     <div className="rule-row cond">
-      <span className="muted small">🔒 se</span>
+      <span className="muted small">{lead}</span>
       <VarSelect value={condition.varId} variables={variables} onChange={(varId) => {
         const nv = variables.find((x) => x.id === varId)!;
-        onChange({ varId, op: OPS_FOR[nv.type].includes(condition.op) ? condition.op : '==', value: nv.type === 'bool' ? true : defaultValue(nv.type) });
+        onChange({ ...condition, varId, op: OPS_FOR[nv.type].includes(condition.op) ? condition.op : '==', value: startValue(nv) });
       }} />
       {v && (
         <>

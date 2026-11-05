@@ -1,4 +1,6 @@
-import type { Id, Project, Story, StoryNode } from '../model/types';
+import type { Choice, CompareOp, Condition, Id, Project, Story, StoryNode, Variable } from '../model/types';
+import { formatValue } from './runtime';
+import { reachable } from './simulate';
 
 export interface Issue {
   nodeId: Id;
@@ -6,18 +8,16 @@ export interface Issue {
   message: string;
 }
 
-/** Nós alcançáveis a partir do início (seguindo todas as escolhas, sem olhar condições). */
-export function reachable(story: Story): Set<Id> {
-  const seen = new Set<Id>();
-  const byId = new Map(story.nodes.map((n) => [n.id, n]));
-  const queue = story.startNodeId ? [story.startNodeId] : [];
-  while (queue.length) {
-    const id = queue.shift()!;
-    if (seen.has(id) || !byId.has(id)) continue;
-    seen.add(id);
-    for (const c of byId.get(id)!.choices) if (c.targetId) queue.push(c.targetId);
-  }
-  return seen;
+export const OP_LABEL: Record<CompareOp, string> = { '==': 'é', '!=': 'não é', '>': '>', '<': '<', '>=': '≥', '<=': '≤' };
+
+export function describeCondition(c: Condition, variables: Pick<Variable, 'id' | 'name'>[]): string {
+  const name = variables.find((v) => v.id === c.varId)?.name ?? '(variável apagada)';
+  return `${name} ${OP_LABEL[c.op]} ${formatValue(c.value)}`;
+}
+
+/** Ex.: "ouro ≥ 8 e confia_kael é sim". */
+export function describeConditions(choice: Pick<Choice, 'conditions' | 'conditionMode'>, variables: Pick<Variable, 'id' | 'name'>[]): string {
+  return choice.conditions.map((c) => describeCondition(c, variables)).join(choice.conditionMode === 'any' ? ' ou ' : ' e ');
 }
 
 export function analyzeStory(story: Story, project: Project): Issue[] {
@@ -36,7 +36,8 @@ export function analyzeStory(story: Story, project: Project): Issue[] {
     n.choices.forEach((c, i) => {
       const label = c.text.trim() ? `"${c.text.trim().slice(0, 30)}"` : `${i + 1}`;
       if (n.type !== 'final' && !c.targetId) add('erro', `A escolha ${label} não leva a lugar nenhum.`);
-      if (c.condition && !varIds.has(c.condition.varId)) add('erro', `A escolha ${label} usa uma variável que foi apagada.`);
+      if (c.conditions.some((x) => !varIds.has(x.varId))) add('erro', `Uma condição da escolha ${label} usa uma variável que foi apagada.`);
+      if (c.effects.some((e) => !varIds.has(e.varId))) add('erro', `Um efeito da escolha ${label} usa uma variável que foi apagada.`);
     });
     if (n.effects.some((e) => !varIds.has(e.varId))) add('erro', 'Um efeito usa uma variável que foi apagada.');
   }

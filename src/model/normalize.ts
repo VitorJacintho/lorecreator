@@ -33,6 +33,7 @@ function condition(v: unknown, vars: Map<string, Variable>): Condition | undefin
   if (!isObj(v) || typeof v.varId !== 'string') return undefined;
   const variable = vars.get(v.varId);
   return {
+    id: id(v.id),
     varId: v.varId,
     op: OPS.includes(v.op as CompareOp) ? (v.op as CompareOp) : '==',
     value: variable ? coerce(variable.type, v.value) : (v.value as Condition['value']) ?? '',
@@ -50,10 +51,16 @@ function effect(v: Obj, vars: Map<string, Variable>): Effect {
 }
 
 function choice(v: Obj, vars: Map<string, Variable>): Choice {
-  const c: Choice = { id: id(v.id), text: str(v.text) };
+  // a versão 1 do formato guardava uma condição só, no campo "condition"
+  const rawConditions = Array.isArray(v.conditions) ? v.conditions : [v.condition];
+  const c: Choice = {
+    id: id(v.id),
+    text: str(v.text),
+    conditions: rawConditions.map((x) => condition(x, vars)).filter((x): x is Condition => !!x),
+    conditionMode: v.conditionMode === 'any' ? 'any' : 'all',
+    effects: arr(v.effects).filter(isObj).map((e) => effect(e, vars)),
+  };
   if (typeof v.targetId === 'string' && v.targetId) c.targetId = v.targetId;
-  const cond = condition(v.condition, vars);
-  if (cond) c.condition = cond;
   return c;
 }
 

@@ -5,12 +5,13 @@ import {
 } from '@xyflow/react';
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { analyzeStory, autoLayout, nodeLabel, type Issue } from '../engine/analyze';
-import { newStoryNode, uid } from '../model/factory';
+import { newChoice, newStoryNode } from '../model/factory';
 import { NODE_TYPE_INFO, type Entry, type Id, type NodeType, type Story, type StoryNode } from '../model/types';
 import { update, useProject } from '../store/store';
 import { getUi, setUi, useUi } from '../store/ui';
 import { plural } from '../util';
 import { NodeInspector, StoryInspector } from './NodeInspector';
+import { SimulationReport } from './SimulationReport';
 
 type NodeData = { node: StoryNode; isStart: boolean; speaker: Entry | null; issues: Issue[] };
 type SNode = Node<NodeData, 'story'>;
@@ -49,7 +50,8 @@ function StoryNodeView({ data, selected }: NodeProps<SNode>) {
         <ul className="choices">
           {node.choices.map((c) => (
             <li key={c.id} className={c.targetId ? '' : 'dangling'}>
-              {c.condition && <span title="Tem condição">🔒 </span>}
+              {c.conditions.length > 0 && <span title="Tem condição">🔒 </span>}
+              {c.effects.length > 0 && <span title="Muda variáveis ao escolher">⚙ </span>}
               {c.text.trim() || <em>Continuar</em>}
               <Handle type="source" position={Position.Right} id={c.id} className="snode-out" />
             </li>
@@ -76,6 +78,7 @@ function Editor({ story }: { story: Story }) {
   const fitted = useRef(false);
   const [selectedEdges, setSelectedEdges] = useState<Set<string>>(new Set());
   const [showIssues, setShowIssues] = useState(false);
+  const [simulating, setSimulating] = useState(false);
 
   const issues = useMemo(() => analyzeStory(story, project), [story, project]);
   const issuesByNode = useMemo(() => {
@@ -111,7 +114,7 @@ function Editor({ story }: { story: Story }) {
                 sourceHandle: c.id,
                 target: c.targetId!,
                 selected: selectedEdges.has(c.id),
-                className: c.condition ? 'edge-cond' : undefined,
+                className: c.conditions.length ? 'edge-cond' : undefined,
                 markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
               })),
       ),
@@ -258,6 +261,7 @@ function Editor({ story }: { story: Story }) {
               </ul>
             )}
           </div>
+          <button className="btn small" disabled={!story.startNodeId} onClick={() => setSimulating(true)} title="Testa todos os caminhos e mostra quais finais dá para alcançar de verdade">🧭 Simular caminhos</button>
           <button className="btn small primary" disabled={!story.startNodeId} onClick={() => setUi({ playtest: { storyId: story.id } })}>▶ Testar</button>
         </div>
       </div>
@@ -285,7 +289,7 @@ function Editor({ story }: { story: Story }) {
             onConnect={onConnect}
             onConnectEnd={onConnectEnd}
             onDelete={onDelete}
-            deleteKeyCode={['Delete']}
+            deleteKeyCode={simulating ? null : ['Delete']}
             zoomOnDoubleClick={false}
             minZoom={0.1}
             maxZoom={2}
@@ -323,6 +327,7 @@ function Editor({ story }: { story: Story }) {
           )}
         </aside>
       </div>
+      {simulating && <SimulationReport story={story} onClose={() => setSimulating(false)} onFocus={focus} />}
     </div>
   );
 }
@@ -347,7 +352,7 @@ function toRfNodes(story: Story, prev: SNode[], entries: Map<Id, Entry>, issuesB
 function connectChoice(src: StoryNode, handleId: string | null, targetId: Id) {
   const existing = handleId && handleId !== 'new' ? src.choices.find((c) => c.id === handleId) : undefined;
   if (existing) existing.targetId = targetId;
-  else src.choices.push({ id: uid(), text: '', targetId });
+  else src.choices.push(newChoice(targetId));
   if (src.type === 'final') src.type = 'cena';
 }
 

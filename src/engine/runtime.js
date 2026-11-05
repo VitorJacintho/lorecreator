@@ -24,6 +24,13 @@ export function checkCondition(cond, vars) {
   return compareValues(vars[cond.varId], cond.op, cond.value);
 }
 
+/** Confere as condições de uma escolha: todas ('all') ou pelo menos uma ('any'). Condições com variável apagada são ignoradas. */
+export function checkConditions(conditions, mode, vars) {
+  const live = (conditions || []).filter((c) => c && c.varId && c.varId in vars);
+  if (live.length === 0) return true;
+  return mode === 'any' ? live.some((c) => checkCondition(c, vars)) : live.every((c) => checkCondition(c, vars));
+}
+
 export function initialVars(variables) {
   const vars = {};
   for (const v of variables) vars[v.id] = v.initial;
@@ -70,11 +77,10 @@ export function renderText(text, vars, variables) {
 
 /** Escolhas de um nó com a informação de quais estão liberadas agora. */
 export function choicesFor(node, vars) {
-  return (node.choices || []).map((choice) => ({
-    choice,
-    ok: checkCondition(choice.condition, vars) && !!choice.targetId,
-    locked: !checkCondition(choice.condition, vars),
-  }));
+  return (node.choices || []).map((choice) => {
+    const open = checkConditions(choice.conditions, choice.conditionMode, vars);
+    return { choice, ok: open && !!choice.targetId, locked: !open };
+  });
 }
 
 /** Entra em um nó: aplica os efeitos e devolve o novo estado. */
@@ -82,4 +88,9 @@ export function enterNode(story, nodeId, vars, variables) {
   const node = story.nodes.find((n) => n.id === nodeId);
   if (!node) return { node: null, vars };
   return { node, vars: applyEffects(node.effects, vars, variables) };
+}
+
+/** Segue uma escolha: aplica os efeitos dela e depois entra no nó de destino. */
+export function followChoice(story, choice, vars, variables) {
+  return enterNode(story, choice.targetId, applyEffects(choice.effects, vars, variables), variables);
 }

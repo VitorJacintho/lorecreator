@@ -1,6 +1,7 @@
 /** Modo "Testar": joga a história como o jogador veria, com as variáveis à mostra. */
 import { useEffect, useMemo, useState } from 'react';
-import { choicesFor, enterNode, formatValue, initialVars, interpolate, type Vars } from '../engine/runtime';
+import { describeConditions } from '../engine/analyze';
+import { choicesFor, enterNode, followChoice, formatValue, initialVars, interpolate, type Vars } from '../engine/runtime';
 import { entryByName, segments } from '../model/links';
 import { KIND_INFO, type Id, type VarValue } from '../model/types';
 import { useProject } from '../store/store';
@@ -27,7 +28,7 @@ export function Playtest() {
     const { vars } = enterNode(story, first, initialVars(project.variables), project.variables);
     return [{ nodeId: first, vars }];
   };
-  const [steps, setSteps] = useState<Step[]>(begin);
+  const [steps, setSteps] = useState<Step[]>(() => pt.route ?? begin());
 
   const current = steps[steps.length - 1];
   const node = story?.nodes.find((n) => n.id === current?.nodeId) ?? null;
@@ -41,7 +42,7 @@ export function Playtest() {
   const choose = (i: number) => {
     const o = visible[i];
     if (!story || !o?.ok || !o.choice.targetId) return;
-    const { vars } = enterNode(story, o.choice.targetId, current.vars, project.variables);
+    const { vars } = followChoice(story, o.choice, current.vars, project.variables);
     setSteps((s) => [...s, { nodeId: o.choice.targetId!, vars, via: o.choice.text.trim() || 'Continuar' }]);
   };
   const setVar = (id: Id, value: VarValue) =>
@@ -124,7 +125,7 @@ export function Playtest() {
                     <button disabled={!o.ok} onClick={() => choose(i)} className={o.locked ? 'locked' : ''}>
                       <span className="pt-key">{i + 1}</span>
                       <span>{interpolate(o.choice.text.trim() || 'Continuar', current.vars, project.variables)}</span>
-                      {o.locked && <span className="pt-why">🔒 condição não cumprida</span>}
+                      {o.locked && <span className="pt-why">🔒 exige {describeConditions(o.choice, project.variables)}</span>}
                       {!o.locked && !o.choice.targetId && <span className="pt-why">sem destino</span>}
                     </button>
                   </li>

@@ -6,7 +6,7 @@
 export type Id = string;
 
 export const PROJECT_FORMAT = 'lorecreator-project';
-export const PROJECT_VERSION = 1;
+export const PROJECT_VERSION = 2;
 
 /* ---------------- codex (o mundo) ---------------- */
 
@@ -63,12 +63,16 @@ export interface Variable {
 export type CompareOp = '==' | '!=' | '>' | '<' | '>=' | '<=';
 
 export interface Condition {
+  id: Id;
   varId: Id;
   op: CompareOp;
   value: VarValue;
 }
 
 export type EffectOp = 'set' | 'add' | 'sub' | 'toggle';
+
+/** all = todas precisam valer (E); any = basta uma (OU) */
+export type ConditionMode = 'all' | 'any';
 
 export interface Effect {
   id: Id;
@@ -87,7 +91,11 @@ export interface Choice {
   /** texto do botão; vazio = "Continuar" */
   text: string;
   targetId?: Id;
-  condition?: Condition;
+  /** vazio = sempre liberada */
+  conditions: Condition[];
+  conditionMode: ConditionMode;
+  /** aplicados ao escolher, antes dos efeitos do nó de destino */
+  effects: Effect[];
 }
 
 export interface StoryNode {

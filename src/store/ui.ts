@@ -1,5 +1,6 @@
 /** Navegação e janelas abertas (não é salvo no projeto). */
 import { useSyncExternalStore } from 'react';
+import type { RouteStep } from '../engine/simulate';
 import type { EntryKind, Id } from '../model/types';
 
 export type View = 'overview' | 'codex' | 'timeline' | 'map' | 'stories' | 'variables' | 'export';
@@ -12,7 +13,8 @@ export interface UiState {
   storyId: Id | null;
   /** nó para focar ao abrir uma história */
   focusNodeId: Id | null;
-  playtest: { storyId: Id; fromNodeId?: Id } | null;
+  /** route = abre o teste já no fim de um caminho (vindo do simulador) */
+  playtest: { storyId: Id; fromNodeId?: Id; route?: RouteStep[] } | null;
   searchOpen: boolean;
   toast: { text: string; id: number } | null;
 }

@@ -1,7 +1,7 @@
 /** Lista de histórias do projeto (ou o editor da história escolhida). */
 import { confirmDialog, promptDialog } from '../components/dialogs';
 import { analyzeStory } from '../engine/analyze';
-import { newStory, uid } from '../model/factory';
+import { cloneChoice, newStory, uid } from '../model/factory';
 import type { Story } from '../model/types';
 import { update, useProject } from '../store/store';
 import { goStory, setUi, useUi } from '../store/ui';
@@ -27,7 +27,7 @@ function cloneStory(s: Story): Story {
     nodes: s.nodes.map((n) => ({
       ...structuredClone(n),
       id: ids.get(n.id)!,
-      choices: n.choices.map((c) => ({ ...structuredClone(c), id: uid(), targetId: c.targetId ? ids.get(c.targetId) : undefined })),
+      choices: n.choices.map((c) => ({ ...cloneChoice(c), targetId: c.targetId ? ids.get(c.targetId) : undefined })),
       effects: n.effects.map((e) => ({ ...e, id: uid() })),
     })),
     createdAt: Date.now(),

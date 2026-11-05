@@ -345,6 +345,9 @@ select.input { padding-right: 4px; }
 .rule-row.cond { margin: 6px 0 0; }
 .rule-row > span { white-space: nowrap; }
 .choice-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+.choice-add { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.cond-mode { margin-top: 2px; }
+.cond-mode button { padding: 3px 6px; font-size: 11.5px; }
 .choice-num { width: 20px; height: 20px; flex: none; border-radius: 50%; background: var(--panel3); display: grid; place-items: center; font-size: 11px; color: var(--accent); }
 .insp-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
 .final-note { margin-top: 18px; }
@@ -438,3 +441,27 @@ select.input { padding-right: 4px; }
 .pt-var > .small { grid-column: 1 / -1; }
 .pt-path { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 12.5px; }
 .pt-empty { margin: auto; text-align: center; }
+
+/* simulador de caminhos */
+.sim-summary { margin: 2px 0 14px; color: var(--muted); }
+.sim-summary strong { color: var(--text); }
+.sim-banner { padding: 10px 12px; border-radius: 10px; margin-bottom: 14px; font-size: 13.5px; border: 1px solid var(--line2); background: var(--panel3); }
+.sim-banner.good { border-color: #5fb49c66; background: #5fb49c14; color: #9bdcc8; }
+.sim-banner.warn { border-color: #e0a45866; background: #e0a45814; color: #edc08a; }
+.sim-section { margin-top: 16px; }
+.sim-section h3 { font-size: 14px; margin: 0 0 2px; }
+.sim-section > p { margin: 0 0 6px; font-size: 12.5px; }
+.sim-list { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; }
+.sim-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 2px 8px; align-items: start; padding: 8px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; font-size: 13px; }
+.sim-mark { text-align: center; font-weight: 700; }
+.sim-mark.ok { color: #5fb49c; }
+.sim-mark.bad { color: #e0705a; }
+.sim-mark.warn { color: var(--accent); }
+.sim-row small { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }
+.sim-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.sim-route { grid-column: 2 / -1; font-size: 12px; color: var(--muted); }
+.sim-route summary { cursor: pointer; }
+.sim-route ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 2px; }
+.sim-ranges { border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+.sim-ranges td { padding: 4px 24px 4px 0; border-bottom: 1px solid var(--line); }
+.sim-ranges tr:last-child td { border-bottom: 0; }
